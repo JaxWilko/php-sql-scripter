@@ -10,14 +10,19 @@ use Logger\Log;
 
 class Transaction
 {
-    private $statements = [];
+    private $statements;
     private $results;
     private $errors;
 
     public function __construct()
     {
-        $this->results = new Results();
-        $this->errors = new Errors();
+        $this->reset()->setNewStores();
+    }
+
+    public function reset()
+    {
+        $this->statements = [];
+        return $this;
     }
 
     public function add($stmt, $index = false)
@@ -40,7 +45,7 @@ class Transaction
 
         foreach ($this->statements as $statement) {
             echo $statement . PHP_EOL;
-            if (Cli::ask('Confirm statement (y/n)') !== 'y') {
+            if ($this->ask('Confirm statement (y/n)') !== 'y') {
                 return false;
             }
         }
@@ -50,10 +55,12 @@ class Transaction
 
     public function commit()
     {
+        $this->setNewStores();
+
         foreach ($this->statements as $index => $statement) {
 
             try {
-                $pdoStmt = DB::prepare('#DataMigrator' . PHP_EOL . $statement);
+                $pdoStmt = DB::prepare('#php-sql-scripter' . PHP_EOL . $statement);
                 $pdoStmt->execute();
 
                 if ($pdoStmt->errorInfo()[0] != '00000') {
@@ -64,17 +71,26 @@ class Transaction
                 return $this->errorHandler($index, $statement, $e->getMessage());
             }
 
-            $this->results->put($pdoStmt->fetchAll(), $index);
+            $this->results->put(((DB::lastInsertId()) ? DB::lastInsertId() : $pdoStmt->fetchAll()), $index);
         }
 
         return true;
     }
 
-    private function errorHandler($index, $statement, $error)
+    public function ask($message)
     {
-        $this->errors->put($error, $index);
-        Log::write($statement . PHP_EOL . print_r($error, true));
-        return false;
+        return Cli::ask($message);
+    }
+
+    public function say($message)
+    {
+        Cli::say($message);
+        return $this;
+    }
+
+    public function end()
+    {
+        die();
     }
 
     public function result()
@@ -86,4 +102,19 @@ class Transaction
     {
         return $this->errors;
     }
+
+    private function setNewStores()
+    {
+        $this->results = new Results();
+        $this->errors = new Errors();
+    }
+
+    private function errorHandler($index, $statement, $error)
+    {
+        $this->errors->put($error, $index);
+        Log::write($statement . PHP_EOL . print_r($error, true));
+        return false;
+    }
+
 }
+
