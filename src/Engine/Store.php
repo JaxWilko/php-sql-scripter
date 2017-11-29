@@ -43,4 +43,9 @@ class Store
         $bag = $this->bag;
         return end($bag);
     }
+
+    public function isEmpty()
+    {
+        return empty($this->bag);
+    }
 }
